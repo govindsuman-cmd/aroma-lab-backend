@@ -3,16 +3,18 @@ const Cart = require("../models/Cart");
 // ➤ GET USER CART
 exports.getCart = async (req, res) => {
   try {
-    const cart = await Cart.findOne({ user: req.user.id }).populate("items.product");
+    const cart = await Cart.findOne({ user: req.user.id }).populate(
+      "items.product",
+    );
     res.json(cart || { items: [] });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-
 // ➤ ADD TO CART
 exports.addToCart = async (req, res) => {
+  console.log("ADD TO CART BODY:", req.body);
   const { productId, quantity } = req.body;
 
   try {
@@ -27,7 +29,7 @@ exports.addToCart = async (req, res) => {
     }
 
     const itemIndex = cart.items.findIndex(
-      item => item.product.toString() === productId
+      (item) => item.product.toString() === productId,
     );
 
     if (itemIndex > -1) {
@@ -43,7 +45,6 @@ exports.addToCart = async (req, res) => {
   }
 };
 
-
 // ➤ UPDATE QUANTITY
 exports.updateQuantity = async (req, res) => {
   const { productId, quantity } = req.body;
@@ -51,7 +52,7 @@ exports.updateQuantity = async (req, res) => {
   try {
     const cart = await Cart.findOne({ user: req.user.id });
 
-    const item = cart.items.find(i => i.product.toString() === productId);
+    const item = cart.items.find((i) => i.product.toString() === productId);
     if (!item) return res.status(404).json({ message: "Item not found" });
 
     item.quantity = quantity;
@@ -62,7 +63,6 @@ exports.updateQuantity = async (req, res) => {
   }
 };
 
-
 // ➤ REMOVE ITEM
 exports.removeItem = async (req, res) => {
   const { productId } = req.body;
@@ -70,7 +70,7 @@ exports.removeItem = async (req, res) => {
   try {
     const cart = await Cart.findOne({ user: req.user.id });
     cart.items = cart.items.filter(
-      item => item.product.toString() !== productId
+      (item) => item.product.toString() !== productId,
     );
 
     await cart.save();
@@ -79,7 +79,6 @@ exports.removeItem = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
-
 
 // ➤ CLEAR CART
 exports.clearCart = async (req, res) => {

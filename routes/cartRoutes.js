@@ -7,10 +7,10 @@ const { isCustomer } = require("../middleware/roleMiddleware");
 
 router.use(verifyToken, isCustomer);
 
-router.get("/", controller.getCart);
-router.post("/add", controller.addToCart);
-router.put("/update", controller.updateQuantity);
-router.delete("/remove", controller.removeItem);
-router.delete("/clear", controller.clearCart);
+router.get("/", verifyToken, controller.getCart);
+router.post("/add", verifyToken, controller.addToCart);
+router.put("/update", verifyToken, controller.updateQuantity);
+router.delete("/remove", verifyToken, controller.removeItem);
+router.delete("/clear", verifyToken, controller.clearCart);
 
 module.exports = router;

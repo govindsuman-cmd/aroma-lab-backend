@@ -27,6 +27,22 @@ const orderSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    statusHistory: [
+  {
+    status: {
+      type: String,
+      enum: ["pending", "paid", "shipped", "out_for_delivery", "delivered", "cancelled"],
+    },
+    note: String,
+    updatedAt: { type: Date, default: Date.now },
+  },
+],
+
+trackingNumber: String,
+courier: String,
+estimatedDelivery: Date,
+
+
     shippingAddress: {
       address: String,
       city: String,
