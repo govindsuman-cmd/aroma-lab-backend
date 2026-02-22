@@ -14,7 +14,6 @@ exports.getCart = async (req, res) => {
 
 // ➤ ADD TO CART
 exports.addToCart = async (req, res) => {
-  console.log("ADD TO CART BODY:", req.body);
   const { productId, quantity } = req.body;
 
   try {

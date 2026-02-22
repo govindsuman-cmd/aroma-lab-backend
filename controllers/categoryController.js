@@ -21,9 +21,6 @@ exports.createCategory = async (req, res) => {
   try {
     const name = String(req.body.name).trim();
 
-    console.log("BODY:", req.body);
-    console.log("FILE:", req.file);
-
     const exists = await Category.findOne({ name });
     if (exists) return res.status(400).json({ message: "Category exists" });
 
@@ -41,7 +38,7 @@ exports.createCategory = async (req, res) => {
       name,
       image: imageData,
     });
-    console.log("status code", res.statusCode);
+
     res.status(201).json(category);
   } catch (err) {
     console.log("CATEGORY CREATE ERROR:", err);
@@ -51,7 +48,8 @@ exports.createCategory = async (req, res) => {
 
 // ➤ GET ALL CATEGORIES
 exports.getCategories = async (req, res) => {
-  const categories = await Category.find({ isActive: true });
+  const categories = await Category.find().sort({ createdAt: -1 });
+
   res.json(categories);
 };
 

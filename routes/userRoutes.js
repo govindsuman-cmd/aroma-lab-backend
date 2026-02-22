@@ -1,12 +1,22 @@
 const express = require("express");
 const router = express.Router();
-const controller = require("../controllers/authController");
+const userController = require("../controllers/userController");
+const { verifyToken } = require("../middleware/authMiddleware");
 
-router.post("/signup", controller.signup);
-router.post("/login", controller.login);
-router.get("/verify-email/:token", controller.verifyEmail);
-router.post("/forgot-password", controller.forgotPassword);
-router.post("/reset-password/:token", controller.resetPassword);
+/**
+ * ADDRESS ROUTES
+ */
 
+// Add new address
+router.post("/address", verifyToken, userController.addAddress);
+
+// Get all user addresses
+router.get("/address", verifyToken, userController.getAddresses);
+
+// Update address
+router.put("/address/:addressId", verifyToken, userController.updateAddress);
+
+// Delete address
+router.delete("/address/:addressId", verifyToken, userController.deleteAddress);
 
 module.exports = router;

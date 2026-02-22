@@ -7,46 +7,41 @@ const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // 🔑 Helper to generate JWT
-const generateToken = (user) => {
+const generateAccessToken = (user) => {
   return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: "7d",
+    expiresIn: "15m",
   });
 };
 
-// 🔑 SIGNUP
-exports.signup = async (req, res) => {
+const generateRefreshToken = (user) => {
+  return jwt.sign(
+    { id: user._id },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: "30d" }, // default max
+  );
+};
+
+exports.verifyEmail = async (req, res) => {
   try {
-    // Force string type to prevent NoSQL injection
-    const name = String(req.body.name).trim();
-    const email = String(req.body.email).toLowerCase().trim();
-    const password = String(req.body.password);
+    const { token } = req.params;
 
-    if (!name || !email || !password)
-      return res.status(400).json({ message: "All fields required" });
-
-    if (password.length < 6)
-      return res.status(400).json({ message: "Password too short" });
-
-    const userExists = await User.findOne({ email });
-    if (userExists)
-      return res.status(400).json({ message: "User already exists" });
-
-    // ⚠️ DO NOT accept role from frontend
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      role: "customer", // Force safe role
+    const user = await User.findOne({
+      emailVerificationToken: token,
+      emailVerificationExpires: { $gt: Date.now() },
     });
 
-    res.status(201).json({
-      token: generateToken(user),
-      user: { id: user._id, name: user.name, role: user.role },
-    });
+    if (!user)
+      return res.status(400).json({ message: "Invalid or expired token" });
+
+    user.isVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+
+    await user.save();
+
+    res.json({ message: "Email verified successfully" });
   } catch (err) {
-    res.status(500).json({ message: "Signup failed" });
+    res.status(500).json({ message: "Verification failed" });
   }
 };
 
@@ -55,6 +50,7 @@ exports.login = async (req, res) => {
   try {
     const email = String(req.body.email).toLowerCase().trim();
     const password = String(req.body.password);
+    const rememberMe = req.body.rememberMe;
 
     if (!email || !password)
       return res.status(400).json({ message: "All fields required" });
@@ -69,8 +65,25 @@ exports.login = async (req, res) => {
     if (!isMatch)
       return res.status(401).json({ message: "Invalid credentials" });
 
+    if (!user.isVerified)
+      return res
+        .status(403)
+        .json({ message: "Please verify your email first" });
+
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: rememberMe
+        ? 30 * 24 * 60 * 60 * 1000 // 30 days
+        : 24 * 60 * 60 * 1000, // 1 day
+    });
+
     res.json({
-      token: generateToken(user),
+      accessToken,
       user: {
         id: user._id,
         name: user.name,
@@ -78,7 +91,106 @@ exports.login = async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ message: "Login failed" });
+    res.status(500).json({ message: `Login failed: ${err.message}` });
+  }
+};
+
+exports.refreshToken = async (req, res) => {
+  const token = req.cookies.refreshToken;
+
+  if (!token) return res.status(401).json({ message: "Unauthorized" });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+
+    const user = await User.findById(decoded.id);
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+    const accessToken = generateAccessToken(user);
+
+    res.json({ accessToken });
+  } catch (err) {
+    return res.status(403).json({ message: "Invalid token" });
+  }
+};
+
+// 🔑 SIGNUP
+exports.signup = async (req, res) => {
+  try {
+    console.log("Signup request:", req.body);
+    const name = String(req.body.name).trim();
+    const email = String(req.body.email).toLowerCase().trim();
+    const password = String(req.body.password);
+
+    if (!name || !email || !password)
+      return res.status(400).json({ message: "All fields required" });
+
+    if (password.length < 6)
+      return res.status(400).json({ message: "Password too short" });
+
+    const userExists = await User.findOne({ email });
+
+    // 👇 If user exists
+    if (userExists) {
+      // ✅ If already verified → block signup
+      if (userExists.isVerified) {
+        return res.status(400).json({ message: "User already exists" });
+      }
+
+      // ❗ If exists but NOT verified → resend verification email
+      const verificationToken = crypto.randomBytes(32).toString("hex");
+
+      userExists.emailVerificationToken = verificationToken;
+      userExists.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000;
+
+      await userExists.save();
+
+      const verifyUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+
+      await sendEmail(
+        email,
+        "Verify Your Email",
+        `<h3>Welcome back to Aroma Store</h3>
+         <p>Please verify your account:</p>
+         <a href="${verifyUrl}">Verify Email</a>`,
+      );
+
+      return res.status(200).json({
+        message: "Verification email resent. Please check your inbox.",
+      });
+    }
+
+    // 🔥 If user does NOT exist → create new user
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      role: "customer",
+      isVerified: false, // make sure this exists in schema
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: Date.now() + 24 * 60 * 60 * 1000,
+    });
+
+    const verifyUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+
+    await sendEmail(
+      email,
+      "Verify Your Email",
+      `<h3>Welcome to Aroma Store</h3>
+       <p>Click below to verify your account:</p>
+       <a href="${verifyUrl}">Verify Email</a>`,
+    );
+
+    res.status(201).json({
+      message: "Signup successful. Please check your email to verify account.",
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Signup failed" });
   }
 };
 
@@ -109,20 +221,28 @@ exports.forgotPassword = async (req, res) => {
 };
 
 exports.resetPassword = async (req, res) => {
-  const user = await User.findOne({
-    resetPasswordToken: req.params.token,
-    resetPasswordExpire: { $gt: Date.now() },
-  });
+  try {
+    const user = await User.findOne({
+      resetPasswordToken: req.params.token,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
 
-  if (!user) return res.status(400).json({ message: "Token expired" });
+    if (!user)
+      return res.status(400).json({ message: "Token expired or invalid" });
 
-  user.password = req.body.password;
-  user.resetPasswordToken = undefined;
-  user.resetPasswordExpire = undefined;
+    // 🔐 HASH THE NEW PASSWORD
+    const hashedPassword = await bcrypt.hash(req.body.password, 12);
+    user.password = hashedPassword;
 
-  await user.save();
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
 
-  res.json({ message: "Password reset successful" });
+    await user.save();
+
+    res.json({ message: "Password reset successful" });
+  } catch (err) {
+    res.status(500).json({ message: "Reset failed" });
+  }
 };
 
 exports.googleLogin = async (req, res) => {
@@ -143,13 +263,11 @@ exports.googleLogin = async (req, res) => {
 
     let user = await User.findOne({ email });
 
-    // Existing user
     if (user) {
       user.isVerified = true;
       user.authProvider = "google";
       await user.save();
     } else {
-      // New user
       user = await User.create({
         name,
         email,
@@ -162,14 +280,18 @@ exports.googleLogin = async (req, res) => {
       });
     }
 
-    const jwtToken = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" },
-    );
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
 
     res.json({
-      token: jwtToken,
+      accessToken,
       user: {
         id: user._id,
         name: user.name,
@@ -179,6 +301,7 @@ exports.googleLogin = async (req, res) => {
       },
     });
   } catch (err) {
+    console.error("GOOGLE LOGIN ERROR:", err);
     res.status(401).json({ message: "Google login failed" });
   }
 };

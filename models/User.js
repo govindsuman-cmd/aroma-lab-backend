@@ -26,6 +26,8 @@ const User = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    emailVerificationToken: String,
+    emailVerificationExpires: Date,
 
     resetPasswordToken: String,
     resetPasswordExpire: Date,
@@ -48,13 +50,15 @@ const User = new mongoose.Schema(
 
     phone: String,
 
-    address: {
-      street: String,
-      city: String,
-      state: String,
-      postalCode: String,
-      country: String,
-    },
+    address: [
+      {
+        street: String,
+        city: String,
+        state: String,
+        postalCode: String,
+        country: String,
+      },
+    ],
 
     isBlocked: {
       type: Boolean,

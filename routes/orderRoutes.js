@@ -10,7 +10,12 @@ router.get("/my", verifyToken, isCustomer, controller.getMyOrders);
 router.put("/:id/cancel", verifyToken, isCustomer, controller.cancelOrder);
 
 // Admin
-router.get("/", verifyToken, isAdmin, controller.getAllOrders);
-router.put("/:id/status", verifyToken, isAdmin, controller.updateOrderStatus);
+router.get("/admin", verifyToken, isAdmin, controller.getAllOrders);
+router.put(
+  "/admin/:id/status",
+  verifyToken,
+  isAdmin,
+  controller.updateOrderStatus,
+);
 
 module.exports = router;

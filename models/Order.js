@@ -28,24 +28,33 @@ const orderSchema = new mongoose.Schema(
     },
 
     statusHistory: [
-  {
-    status: {
-      type: String,
-      enum: ["pending", "paid", "shipped", "out_for_delivery", "delivered", "cancelled"],
-    },
-    note: String,
-    updatedAt: { type: Date, default: Date.now },
-  },
-],
+      {
+        status: {
+          type: String,
+          enum: [
+            "pending",
+            "paid",
+            "shipped",
+            "out_for_delivery",
+            "delivered",
+            "cancelled",
+          ],
+        },
+        note: String,
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
 
-trackingNumber: String,
-courier: String,
-estimatedDelivery: Date,
-
+    trackingNumber: String,
+    courier: String,
+    estimatedDelivery: Date,
 
     shippingAddress: {
+      fullName: String,
+      phone: String,
       address: String,
       city: String,
+      state: String,
       postalCode: String,
       country: String,
     },
@@ -55,15 +64,14 @@ estimatedDelivery: Date,
       default: "COD",
     },
     razorpayOrderId: String,
-razorpayPaymentId: String,
-isPaid: {
-  type: Boolean,
-  default: false,
-},
-paidAt: Date,
-
+    razorpayPaymentId: String,
+    isPaid: {
+      type: Boolean,
+      default: false,
+    },
+    paidAt: Date,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Order", orderSchema);

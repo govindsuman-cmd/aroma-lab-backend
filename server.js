@@ -13,8 +13,18 @@ const cartRoutes = require("./routes/cartRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
-
+const userRoutes = require("./routes/userRoutes");
 const app = express();
+const cookieParser = require("cookie-parser");
+app.use(cookieParser());
+
+// Enable CORS
+app.use(
+  cors({
+    origin: "http://localhost:8080",
+    credentials: true, // if using cookies/auth
+  }),
+);
 
 // ========================
 // 🔐 SECURITY MIDDLEWARES
@@ -35,16 +45,13 @@ app.use((req, res, next) => {
 app.use(hpp());
 
 // Rate Limiting (API Abuse Protection)
-app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 mins
-    max: 100, // limit each IP
-    message: "Too many requests, try again later",
-  }),
-);
-
-// Enable CORS
-app.use(cors());
+// app.use(
+//   rateLimit({
+//     windowMs: 15 * 60 * 1000, // 15 mins
+//     max: 100, // limit each IP
+//     message: "Too many requests, try again later",
+//   }),
+// );
 
 // Parse JSON bodies
 app.use((req, res, next) => {
@@ -71,7 +78,7 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/categories", categoryRoutes);
-
+app.use("/api/user", userRoutes);
 // ========================
 // 🚀 SERVER START
 // ========================
