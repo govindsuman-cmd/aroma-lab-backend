@@ -21,7 +21,7 @@ app.use(cookieParser());
 // Enable CORS
 app.use(
   cors({
-    origin: "http://localhost:8080",
+    origin: "https://www.thearomalab.shop",
     credentials: true, // if using cookies/auth
   }),
 );
